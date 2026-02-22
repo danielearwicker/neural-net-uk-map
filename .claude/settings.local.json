@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:commons.wikimedia.org)",
+      "WebSearch",
+      "WebFetch(domain:en.wikipedia.org)",
+      "Bash(node:*)"
+    ]
+  }
+}
