@@ -85,6 +85,56 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
       activation function) and training hyperparameters (learning rate, batch size) live
       in the controls below.
     </p>
+    <p style="margin-top:12px; font-size:12px; color:#c9d1d9;"><strong>Terminology:</strong></p>
+    <ul style="margin-top:4px; padding-left:18px;">
+      <li>
+        <strong>Neural network</strong> &mdash; A chain of layers of artificial neurons. Each
+        neuron computes a weighted sum of its inputs, adds a bias, and passes the result
+        through an activation function. By stacking layers, the network can learn complex
+        non-linear boundaries &mdash; like coastlines.
+      </li>
+      <li style="margin-top:4px;">
+        <strong>Activation function</strong> &mdash; A non-linear function applied after each
+        neuron's weighted sum. Without it, stacking layers would be no more powerful than a
+        single layer. <em>tanh</em> squashes values to (&minus;1,&nbsp;+1);
+        <em>ReLU</em> zeroes out negatives and passes positives through unchanged.
+      </li>
+      <li style="margin-top:4px;">
+        <strong>Forward pass</strong> &mdash; Feeding an (x,&nbsp;y) coordinate through the
+        network layer by layer to produce an output between 0 (sea) and 1 (land).
+      </li>
+      <li style="margin-top:4px;">
+        <strong>Loss (binary cross-entropy)</strong> &mdash; A measure of how wrong the
+        network's predictions are. It heavily penalises confident wrong answers: predicting
+        0.01 when the true label is 1 costs far more than predicting 0.4. Training aims to
+        minimise this.
+      </li>
+      <li style="margin-top:4px;">
+        <strong>Backpropagation</strong> &mdash; An algorithm that works backwards through the
+        network to calculate how much each weight contributed to the loss. This gives a
+        gradient &mdash; a direction to nudge each weight to reduce the error.
+      </li>
+      <li style="margin-top:4px;">
+        <strong>Gradient descent (SGD)</strong> &mdash; The optimisation step: each weight is
+        adjusted by a small amount in the direction that reduces the loss. &ldquo;Stochastic&rdquo;
+        means we estimate the gradient from a random mini-batch rather than the entire dataset,
+        which is much faster.
+      </li>
+      <li style="margin-top:4px;">
+        <strong>Learning rate</strong> &mdash; How big each weight adjustment is. Too high and
+        training overshoots and becomes unstable; too low and it converges very slowly.
+      </li>
+      <li style="margin-top:4px;">
+        <strong>Batch size</strong> &mdash; The number of random samples averaged together in
+        each gradient estimate. Larger batches give smoother, more reliable gradients but
+        update less frequently per sample seen.
+      </li>
+      <li style="margin-top:4px;">
+        <strong>Test set</strong> &mdash; 20% of the sampled points held back and never used
+        for training. Accuracy on these unseen points shows whether the network is genuinely
+        learning the coastline shape, not just memorising the training samples.
+      </li>
+    </ul>
     <p style="margin-top:12px; font-size:12px; color:#c9d1d9;"><strong>The three panels:</strong></p>
     <ul style="margin-top:4px; padding-left:18px;">
       <li>
