@@ -133,6 +133,17 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
       <option value="128">128</option>
     </select>
   </label>
+  <label style="font-size:12px; color:#8b949e; display:flex; align-items:center; gap:5px;">
+    Steps/frame
+    <select id="stepsSelect" class="ctl-select">
+      <option value="1">1</option>
+      <option value="10">10</option>
+      <option value="50" selected>50</option>
+      <option value="100">100</option>
+      <option value="200">200</option>
+      <option value="500">500</option>
+    </select>
+  </label>
 </div>
 
 <!-- Row 4: data -->
@@ -150,6 +161,7 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 <!-- Neural network lives in nn.js so it can be tested independently with node -->
 <script src="nn.js"></script>
 <script src="webgl-renderer.js"></script>
+<script src="webgl-trainer.js"></script>
 <script>
 
 const CW = 260, CH = 344;
@@ -168,6 +180,20 @@ try {
   console.warn('WebGL2 not available, using Canvas 2D fallback:', e.message);
   netCtx = netCanvas.getContext('2d');
 }
+
+// ── WebGL2 GPU trainer (shares GL context with the renderer) ──
+let glTrainer = null;
+if (glRenderer) {
+  try {
+    glTrainer = new WebGLTrainer(glRenderer.gl, glRenderer.vao);
+    if (!glTrainer.ok) glTrainer = null;
+    if (glTrainer) console.log('WebGL2 GPU training active');
+  } catch (e) {
+    console.warn('GPU training not available:', e.message);
+    glTrainer = null;
+  }
+}
+
 const lossCanvas = document.getElementById('lossCanvas');
 const lossCtx    = lossCanvas.getContext('2d');
 
@@ -429,6 +455,10 @@ function sampleData(nTotal) {
   cancelAnimationFrame(rafId);
   net            = new NN(buildSizes(), document.getElementById('actSelect').value);
   if (glRenderer) glRenderer.buildShader(net.sizes, net.actName);
+  if (glTrainer) {
+    glTrainer.buildForArchitecture(net.sizes, net.actName);
+    glTrainer.uploadWeights(net);
+  }
   stepCount      = 0;
   lossSmoothed   = 0;
   lossHistory    = [];
@@ -474,52 +504,83 @@ function computeTestAccuracy() {
 // ─────────────────────────────────────────────────────────────────
 // Training loop
 // ─────────────────────────────────────────────────────────────────
-const STEPS_PER_FRAME = 10;    // batch updates per frame
-const EVAL_EVERY      = 200;   // test-set evaluation interval (batch steps)
+const EVAL_EVERY = 200;   // test-set evaluation interval (batch steps)
 
 function trainLoop() {
   if (!training) return;
 
   // Read live hyperparameters from the UI each frame
-  const LR         = parseFloat(document.getElementById('lrSelect').value);
-  const BATCH_SIZE = parseInt(document.getElementById('batchSelect').value);
-  const N          = trainXs.length;
+  const LR             = parseFloat(document.getElementById('lrSelect').value);
+  const BATCH_SIZE     = parseInt(document.getElementById('batchSelect').value);
+  const STEPS_PER_FRAME = parseInt(document.getElementById('stepsSelect').value);
+  const N              = trainXs.length;
 
-  for (let s = 0; s < STEPS_PER_FRAME; s++) {
-    // Build a random mini-batch
-    const bxs = [], bys = [];
-    for (let b = 0; b < BATCH_SIZE; b++) {
-      const k = Math.floor(Math.random() * N);
-      bxs.push(trainXs[k]);
-      bys.push(trainYs[k]);
+  if (glTrainer) {
+    // ── GPU training path ──────────────────────────────────────
+    // Run all training steps WITHOUT any readPixels calls.
+    // This lets the GPU batch all draw calls with zero pipeline stalls.
+    const prevStep = stepCount;
+    for (let s = 0; s < STEPS_PER_FRAME; s++) {
+      const bxs = [], bys = [];
+      for (let b = 0; b < BATCH_SIZE; b++) {
+        const k = Math.floor(Math.random() * N);
+        bxs.push(trainXs[k]);
+        bys.push(trainYs[k]);
+      }
+      glTrainer.uploadBatch(bxs, bys, BATCH_SIZE);
+      glTrainer.trainStep(LR, BATCH_SIZE);
+      stepCount++;
     }
-    const loss = net.batchStep(bxs, bys, LR);
-    stepCount++;
-    // Exponential moving average (α=0.02) smooths the noisy per-batch loss for display.
-    // On step 1, lossSmoothed is still 0, so we seed it with the raw loss instead of
-    // blending with 0 (which would create a misleadingly slow ramp from zero).
+
+    // ONE readback per frame for the loss (the last batch's output activations
+    // are still in the activation texture, so readLoss is valid here).
+    const loss = glTrainer.readLoss(BATCH_SIZE);
     lossSmoothed = lossSmoothed === 0 ? loss : 0.98 * lossSmoothed + 0.02 * loss;
-    if (stepCount % 5 === 0) lossHistory.push(lossSmoothed);
+    lossHistory.push(lossSmoothed);
+
+    // Sync weights to CPU for test accuracy (once every EVAL_EVERY steps)
+    if (stepCount % EVAL_EVERY < STEPS_PER_FRAME ||
+        Math.floor(stepCount / EVAL_EVERY) !== Math.floor(prevStep / EVAL_EVERY)) {
+      glTrainer.downloadWeights(net);
+      lastTestAcc = computeTestAccuracy();
+      testAccHistory.push(lastTestAcc);
+    }
+
+    // Render directly from the GPU weight texture (no CPU readback)
+    glRenderer.renderFromTexture(glTrainer.currentWeightTexture());
+
+  } else {
+    // ── CPU training path (fallback) ───────────────────────────
+    for (let s = 0; s < STEPS_PER_FRAME; s++) {
+      const bxs = [], bys = [];
+      for (let b = 0; b < BATCH_SIZE; b++) {
+        const k = Math.floor(Math.random() * N);
+        bxs.push(trainXs[k]);
+        bys.push(trainYs[k]);
+      }
+      const loss = net.batchStep(bxs, bys, LR);
+      stepCount++;
+      lossSmoothed = lossSmoothed === 0 ? loss : 0.98 * lossSmoothed + 0.02 * loss;
+      if (stepCount % 5 === 0) lossHistory.push(lossSmoothed);
+    }
+
+    if (stepCount % EVAL_EVERY < STEPS_PER_FRAME) {
+      lastTestAcc = computeTestAccuracy();
+      testAccHistory.push(lastTestAcc);
+    }
+
+    renderNetwork();
   }
 
-  // Evaluate on the held-out test set every EVAL_EVERY steps.
-  // Because we advance STEPS_PER_FRAME steps per frame, we can't check for an exact
-  // multiple — instead we check whether we just *crossed* one: the remainder fell below
-  // STEPS_PER_FRAME this frame, meaning a multiple is now behind us.
-  if (stepCount % EVAL_EVERY < STEPS_PER_FRAME) {
-    lastTestAcc = computeTestAccuracy();
-    testAccHistory.push(lastTestAcc);
-  }
-
-  renderNetwork();
   renderLoss();
 
   const accText = lastTestAcc !== null
     ? ` | Test acc: ${(lastTestAcc * 100).toFixed(1)}%`
     : '';
   const arch = net.sizes.join('→');
+  const mode = glTrainer ? ' [GPU]' : '';
   document.getElementById('stats').textContent =
-    `[${arch}]  Steps: ${stepCount.toLocaleString()} | Loss: ${lossSmoothed.toFixed(4)}${accText}`;
+    `[${arch}]  Steps: ${stepCount.toLocaleString()} | Loss: ${lossSmoothed.toFixed(4)}${accText}${mode}`;
 
   rafId = requestAnimationFrame(trainLoop);
 }
@@ -533,10 +594,16 @@ function toggle() {
     training = false;
     btn.textContent = 'Resume Training';
     cancelAnimationFrame(rafId);
+    // Sync GPU weights back to CPU so test accuracy / CPU fallback stay correct
+    if (glTrainer) glTrainer.downloadWeights(net);
   } else {
     if (!net) {
       net = new NN(buildSizes(), document.getElementById('actSelect').value);
       if (glRenderer) glRenderer.buildShader(net.sizes, net.actName);
+      if (glTrainer) {
+        glTrainer.buildForArchitecture(net.sizes, net.actName);
+        glTrainer.uploadWeights(net);
+      }
       renderNetwork();
     }
     training = true;
@@ -550,6 +617,10 @@ function resetNet() {
   cancelAnimationFrame(rafId);
   net            = new NN(buildSizes(), document.getElementById('actSelect').value);
   if (glRenderer) glRenderer.buildShader(net.sizes, net.actName);
+  if (glTrainer) {
+    glTrainer.buildForArchitecture(net.sizes, net.actName);
+    glTrainer.uploadWeights(net);
+  }
   stepCount      = 0;
   lossSmoothed   = 0;
   lossHistory    = [];

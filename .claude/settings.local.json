@@ -4,7 +4,11 @@
       "WebFetch(domain:commons.wikimedia.org)",
       "WebSearch",
       "WebFetch(domain:en.wikipedia.org)",
-      "Bash(node:*)"
+      "Bash(node:*)",
+      "Bash(git branch:*)",
+      "Bash(git remote:*)",
+      "Bash(git push:*)",
+      "Bash(git add:*)"
     ]
   }
 }

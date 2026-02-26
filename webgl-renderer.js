@@ -174,6 +174,30 @@ void main() {
     gl.drawArrays(gl.TRIANGLES, 0, 6);
   }
 
+  // ─────────────────────────────────────────────────────────────
+  // Render using a GPU-resident weight texture directly.
+  // Skips the CPU→GPU weight upload — used when training on the GPU.
+  // ─────────────────────────────────────────────────────────────
+  renderFromTexture(weightTex) {
+    if (!this.program) return;
+    const gl = this.gl;
+
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.viewport(0, 0, this.width, this.height);
+    gl.useProgram(this.program);
+
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, weightTex);
+    gl.uniform1i(this.uWeights, 0);
+
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, this.mapTex);
+    gl.uniform1i(this.uMap, 1);
+
+    gl.bindVertexArray(this.vao);
+    gl.drawArrays(gl.TRIANGLES, 0, 6);
+  }
+
   // ═══════════════════════════════════════════════════════════
   //  Private helpers
   // ═══════════════════════════════════════════════════════════
