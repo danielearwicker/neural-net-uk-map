@@ -10,7 +10,7 @@ Both training and rendering run on the GPU via WebGL2 fragment shaders when avai
 
 1. A map of the British Isles is fetched from Wikimedia Commons and sampled at random pixel locations to build a training set of (x, y) coordinates labelled land or sea.
 2. A fully-connected neural network (configurable depth, width, and activation function) is trained with mini-batch SGD and binary cross-entropy loss.
-3. Every animation frame, the network's prediction is evaluated at every pixel and rendered as a heatmap — blue for land, red for sea, white for uncertain.
+3. Every animation frame, the network's prediction is evaluated at every pixel and rendered as a heatmap — green for land, blue for sea, white for uncertain.
 
 ## Usage
 

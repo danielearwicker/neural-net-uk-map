@@ -63,8 +63,8 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 </div>
 
 <div class="legend">
-  <span><span class="dot" style="background:#3b82f6"></span>Land (label = 1)</span>
-  <span><span class="dot" style="background:#ef4444"></span>Sea (label = 0)</span>
+  <span><span class="dot" style="background:#00cc00"></span>Land (label = 1)</span>
+  <span><span class="dot" style="background:#0066ff"></span>Sea (label = 0)</span>
 </div>
 
 <details class="explainer" style="max-width:690px; margin:0 auto; text-align:left;">
@@ -74,8 +74,8 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
       This demo trains a small neural network to distinguish land from sea across a map
       of the British Isles (including Ireland and a sliver of northern France).
       A map image is fetched from Wikimedia Commons, and thousands of random pixel
-      locations are sampled and labelled: <strong style="color:#3b82f6">land (1)</strong>
-      or <strong style="color:#ef4444">sea (0)</strong>, based on the pixel colour.
+      locations are sampled and labelled: <strong style="color:#00cc00">land (1)</strong>
+      or <strong style="color:#0066ff">sea (0)</strong>, based on the pixel colour.
       The network receives only (x,&nbsp;y) coordinates as input and must learn to predict
       which side of the coastline each point falls on.
     </p>
@@ -89,17 +89,17 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
     <ul style="margin-top:4px; padding-left:18px;">
       <li>
         <strong>Training data</strong> (left) &mdash; The source map overlaid with sampled data
-        points. <span style="color:#3b82f6">Blue dots</span> mark locations classified as
-        land; <span style="color:#ef4444">red dots</span> mark sea or background.
+        points. <span style="color:#00cc00">Green dots</span> mark locations classified as
+        land; <span style="color:#0066ff">blue dots</span> mark sea or background.
         Larger, brighter dots are training samples; smaller, fainter dots are the
         held-out test set (20% of samples, used only for evaluation).
       </li>
       <li style="margin-top:4px;">
         <strong>Network prediction</strong> (centre) &mdash; A live heatmap of the network's
         output for every pixel, evaluated on the GPU each frame.
-        <span style="color:#3b82f6">Blue</span> = the network is confident the point is
+        <span style="color:#00cc00">Green</span> = the network is confident the point is
         land (output &asymp;&nbsp;1).
-        <span style="color:#ef4444">Red/orange</span> = confident it is sea
+        <span style="color:#0066ff">Blue</span> = confident it is sea
         (output &asymp;&nbsp;0).
         <span style="color:#ccc">White</span> = uncertain (output &asymp;&nbsp;0.5).
         As training progresses, the coloured regions sharpen and the white uncertain band
@@ -370,9 +370,9 @@ function renderNetwork() {
       const p = net.forward(tmp);
 
       const uncertain = 1 - Math.abs(p - 0.5) * 2;
-      const r = Math.round(239 * (1 - p) + 255 * uncertain);
-      const g = Math.round( 68 * (1 - p) + 255 * uncertain);
-      const b = Math.round(246 * p       + 255 * uncertain);
+      const r = Math.round(255 * uncertain);
+      const g = Math.round(102 * (1 - p) + 204 * p + 255 * uncertain);
+      const b = Math.round(255 * (1 - p) + 255 * uncertain);
 
       const x0 = Math.floor(gx * CW / GRID),  x1 = Math.floor((gx + 1) * CW / GRID);
       const y0 = Math.floor(gy * CH / GRID),  y1 = Math.floor((gy + 1) * CH / GRID);
@@ -489,7 +489,7 @@ function sampleData(nTotal) {
   for (let k = 0; k < dotsTrain; k++) {
     const cx = (trainXs[k][0] + 1) / 2 * CW;
     const cy = (trainXs[k][1] + 1) / 2 * CH;
-    mapCtx.fillStyle = trainYs[k] === 1 ? 'rgba(59,130,246,0.55)' : 'rgba(239,68,68,0.28)';
+    mapCtx.fillStyle = trainYs[k] === 1 ? 'rgba(0,204,0,0.55)' : 'rgba(0,102,255,0.28)';
     mapCtx.beginPath();
     mapCtx.arc(cx, cy, 1.5, 0, Math.PI * 2);
     mapCtx.fill();
@@ -497,7 +497,7 @@ function sampleData(nTotal) {
   for (let k = 0; k < testXs.length; k++) {
     const cx = (testXs[k][0] + 1) / 2 * CW;
     const cy = (testXs[k][1] + 1) / 2 * CH;
-    mapCtx.fillStyle = testYs[k] === 1 ? 'rgba(59,130,246,0.2)' : 'rgba(239,68,68,0.1)';
+    mapCtx.fillStyle = testYs[k] === 1 ? 'rgba(0,204,0,0.2)' : 'rgba(0,102,255,0.1)';
     mapCtx.beginPath();
     mapCtx.arc(cx, cy, 1, 0, Math.PI * 2);
     mapCtx.fill();
