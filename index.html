@@ -149,6 +149,7 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 
 <!-- Neural network lives in nn.js so it can be tested independently with node -->
 <script src="nn.js"></script>
+<script src="webgl-renderer.js"></script>
 <script>
 
 const CW = 260, CH = 344;
@@ -156,7 +157,17 @@ const CW = 260, CH = 344;
 const mapCanvas  = document.getElementById('mapCanvas');
 const mapCtx     = mapCanvas.getContext('2d');
 const netCanvas  = document.getElementById('netCanvas');
-const netCtx     = netCanvas.getContext('2d');
+
+// ── WebGL2 renderer (GPU-accelerated, per-pixel) with Canvas 2D fallback ──
+let netCtx     = null;
+let glRenderer = null;
+try {
+  glRenderer = new WebGLNetRenderer(netCanvas, CW, CH);
+  console.log('WebGL2 renderer active — per-pixel GPU evaluation');
+} catch (e) {
+  console.warn('WebGL2 not available, using Canvas 2D fallback:', e.message);
+  netCtx = netCanvas.getContext('2d');
+}
 const lossCanvas = document.getElementById('lossCanvas');
 const lossCtx    = lossCanvas.getContext('2d');
 
@@ -251,12 +262,22 @@ async function loadMap() {
 }
 
 // ─────────────────────────────────────────────────────────────────
-// Render current network output on netCanvas (80×80 grid)
+// Render current network output on netCanvas.
+//
+// When WebGL2 is available the entire forward pass runs on the GPU
+// per-pixel at full 260×344 resolution (89,440 evaluations/frame).
+// Otherwise we fall back to the original Canvas 2D path (80×80 grid).
 // ─────────────────────────────────────────────────────────────────
-const GRID = 80;
-const tmp  = new Float64Array(2);
+const GRID = 80;                      // fallback grid resolution
+const tmp  = new Float64Array(2);     // reusable input buffer (fallback)
 
 function renderNetwork() {
+  if (glRenderer) {
+    glRenderer.render(net);
+    return;
+  }
+
+  // ── Canvas 2D fallback (identical to the original implementation) ──
   const imgData = netCtx.createImageData(CW, CH);
   const buf     = imgData.data;
 
@@ -266,9 +287,7 @@ function renderNetwork() {
       tmp[1] = (gy + 0.5) / GRID * 2 - 1;
       const p = net.forward(tmp);
 
-      // Colour: blue (p→1, inside) ↔ red (p→0, outside)
-      // White where uncertain (p ≈ 0.5)
-      const uncertain = 1 - Math.abs(p - 0.5) * 2;   // 1 at p=0.5, 0 at p=0 or 1
+      const uncertain = 1 - Math.abs(p - 0.5) * 2;
       const r = Math.round(239 * (1 - p) + 255 * uncertain);
       const g = Math.round( 68 * (1 - p) + 255 * uncertain);
       const b = Math.round(246 * p       + 255 * uncertain);
@@ -286,8 +305,6 @@ function renderNetwork() {
   }
 
   netCtx.putImageData(imgData, 0, 0);
-
-  // Ghost the original map outline on top
   netCtx.globalAlpha = 0.2;
   netCtx.drawImage(mapCanvas, 0, 0);
   netCtx.globalAlpha = 1;
@@ -359,6 +376,8 @@ function sampleData(nTotal) {
     const py = Math.floor(Math.random() * CH);
     const i  = (py * CW + px) * 4;
     const r  = mapPixels[i], g = mapPixels[i+1], b = mapPixels[i+2];
+    // Normalise pixel coordinates from [0, CW/CH) to [−1, +1].
+    // Centred, unit-scale inputs make gradient descent converge much faster.
     allXs.push(new Float64Array([(px / CW) * 2 - 1, (py / CH) * 2 - 1]));
     allYs.push(classifyPixel(r, g, b));
   }
@@ -402,10 +421,14 @@ function sampleData(nTotal) {
     mapCtx.fill();
   }
 
+  // Upload the map (with dots) to the GPU overlay texture
+  if (glRenderer) glRenderer.uploadMap(mapCanvas);
+
   // Reset the network and counters since the data has changed
   training = false;
   cancelAnimationFrame(rafId);
   net            = new NN(buildSizes(), document.getElementById('actSelect').value);
+  if (glRenderer) glRenderer.buildShader(net.sizes, net.actName);
   stepCount      = 0;
   lossSmoothed   = 0;
   lossHistory    = [];
@@ -472,11 +495,17 @@ function trainLoop() {
     }
     const loss = net.batchStep(bxs, bys, LR);
     stepCount++;
+    // Exponential moving average (α=0.02) smooths the noisy per-batch loss for display.
+    // On step 1, lossSmoothed is still 0, so we seed it with the raw loss instead of
+    // blending with 0 (which would create a misleadingly slow ramp from zero).
     lossSmoothed = lossSmoothed === 0 ? loss : 0.98 * lossSmoothed + 0.02 * loss;
     if (stepCount % 5 === 0) lossHistory.push(lossSmoothed);
   }
 
-  // Evaluate on the held-out test set every EVAL_EVERY steps
+  // Evaluate on the held-out test set every EVAL_EVERY steps.
+  // Because we advance STEPS_PER_FRAME steps per frame, we can't check for an exact
+  // multiple — instead we check whether we just *crossed* one: the remainder fell below
+  // STEPS_PER_FRAME this frame, meaning a multiple is now behind us.
   if (stepCount % EVAL_EVERY < STEPS_PER_FRAME) {
     lastTestAcc = computeTestAccuracy();
     testAccHistory.push(lastTestAcc);
@@ -507,6 +536,7 @@ function toggle() {
   } else {
     if (!net) {
       net = new NN(buildSizes(), document.getElementById('actSelect').value);
+      if (glRenderer) glRenderer.buildShader(net.sizes, net.actName);
       renderNetwork();
     }
     training = true;
@@ -519,6 +549,7 @@ function resetNet() {
   training = false;
   cancelAnimationFrame(rafId);
   net            = new NN(buildSizes(), document.getElementById('actSelect').value);
+  if (glRenderer) glRenderer.buildShader(net.sizes, net.actName);
   stepCount      = 0;
   lossSmoothed   = 0;
   lossHistory    = [];
