@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>UK Neural Network</title>
+<title>Land vs Sea — Neural Network Classifier</title>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body {
@@ -44,7 +44,7 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 </head>
 <body>
 
-<h1>UK Boundary — Neural Network Classifier</h1>
+<h1>Land vs Sea — Neural Network Classifier</h1>
 <div id="status">Fetching map from Wikimedia Commons…</div>
 
 <div class="canvases">
@@ -63,15 +63,16 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 </div>
 
 <div class="legend">
-  <span><span class="dot" style="background:#3b82f6"></span>Inside UK (label = 1)</span>
-  <span><span class="dot" style="background:#ef4444"></span>Outside UK (label = 0)</span>
+  <span><span class="dot" style="background:#3b82f6"></span>Land (label = 1)</span>
+  <span><span class="dot" style="background:#ef4444"></span>Sea (label = 0)</span>
 </div>
 
 <details class="explainer" style="max-width:690px; margin:0 auto; text-align:left;">
   <summary style="cursor:pointer; font-size:13px; color:#58a6ff;">How does this work?</summary>
   <div style="font-size:12px; color:#8b949e; line-height:1.6; margin-top:8px;">
     <p>
-      This demo trains a small neural network to learn the shape of the United Kingdom.
+      This demo trains a small neural network to distinguish land from sea across a map
+      of the British Isles (including Ireland and a sliver of northern France).
       A map image is fetched from Wikimedia Commons, and thousands of random pixel
       locations are sampled and labelled: <strong style="color:#3b82f6">land (1)</strong>
       or <strong style="color:#ef4444">sea (0)</strong>, based on the pixel colour.
@@ -89,16 +90,16 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
       <li>
         <strong>Training data</strong> (left) &mdash; The source map overlaid with sampled data
         points. <span style="color:#3b82f6">Blue dots</span> mark locations classified as
-        land (inside UK); <span style="color:#ef4444">red dots</span> mark sea or background
-        (outside UK). Larger, brighter dots are training samples; smaller, fainter dots are the
+        land; <span style="color:#ef4444">red dots</span> mark sea or background.
+        Larger, brighter dots are training samples; smaller, fainter dots are the
         held-out test set (20% of samples, used only for evaluation).
       </li>
       <li style="margin-top:4px;">
         <strong>Network prediction</strong> (centre) &mdash; A live heatmap of the network's
         output for every pixel, evaluated on the GPU each frame.
-        <span style="color:#3b82f6">Blue</span> = the network is confident the point is inside
-        the UK (output &asymp;&nbsp;1).
-        <span style="color:#ef4444">Red/orange</span> = confident it is outside
+        <span style="color:#3b82f6">Blue</span> = the network is confident the point is
+        land (output &asymp;&nbsp;1).
+        <span style="color:#ef4444">Red/orange</span> = confident it is sea
         (output &asymp;&nbsp;0).
         <span style="color:#ccc">White</span> = uncertain (output &asymp;&nbsp;0.5).
         As training progresses, the coloured regions sharpen and the white uncertain band
