@@ -67,6 +67,61 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
   <span><span class="dot" style="background:#ef4444"></span>Outside UK (label = 0)</span>
 </div>
 
+<details class="explainer" style="max-width:690px; margin:0 auto; text-align:left;">
+  <summary style="cursor:pointer; font-size:13px; color:#58a6ff;">How does this work?</summary>
+  <div style="font-size:12px; color:#8b949e; line-height:1.6; margin-top:8px;">
+    <p>
+      This demo trains a small neural network to learn the shape of the United Kingdom.
+      A map image is fetched from Wikimedia Commons, and thousands of random pixel
+      locations are sampled and labelled: <strong style="color:#3b82f6">land (1)</strong>
+      or <strong style="color:#ef4444">sea (0)</strong>, based on the pixel colour.
+      The network receives only (x,&nbsp;y) coordinates as input and must learn to predict
+      which side of the coastline each point falls on.
+    </p>
+    <p style="margin-top:8px;">
+      Training uses mini-batch stochastic gradient descent (SGD) with binary cross-entropy
+      loss and backpropagation. You can adjust the network architecture (depth, width,
+      activation function) and training hyperparameters (learning rate, batch size) live
+      in the controls below.
+    </p>
+    <p style="margin-top:12px; font-size:12px; color:#c9d1d9;"><strong>The three panels:</strong></p>
+    <ul style="margin-top:4px; padding-left:18px;">
+      <li>
+        <strong>Training data</strong> (left) &mdash; The source map overlaid with sampled data
+        points. <span style="color:#3b82f6">Blue dots</span> mark locations classified as
+        land (inside UK); <span style="color:#ef4444">red dots</span> mark sea or background
+        (outside UK). Larger, brighter dots are training samples; smaller, fainter dots are the
+        held-out test set (20% of samples, used only for evaluation).
+      </li>
+      <li style="margin-top:4px;">
+        <strong>Network prediction</strong> (centre) &mdash; A live heatmap of the network's
+        output for every pixel, evaluated on the GPU each frame.
+        <span style="color:#3b82f6">Blue</span> = the network is confident the point is inside
+        the UK (output &asymp;&nbsp;1).
+        <span style="color:#ef4444">Red/orange</span> = confident it is outside
+        (output &asymp;&nbsp;0).
+        <span style="color:#ccc">White</span> = uncertain (output &asymp;&nbsp;0.5).
+        As training progresses, the coloured regions sharpen and the white uncertain band
+        narrows to trace the coastline.
+      </li>
+      <li style="margin-top:4px;">
+        <strong>Loss &amp; test accuracy</strong> (right) &mdash; Two curves plotted over
+        training steps.
+        The <span style="color:#58a6ff">blue curve</span> shows the smoothed training loss
+        (binary cross-entropy) &mdash; lower is better.
+        The <span style="color:#3fb950">green curve</span> shows classification accuracy on
+        the held-out test set &mdash; higher is better.
+      </li>
+    </ul>
+    <p style="margin-top:8px;">
+      When WebGL2 is available, both training (forward + backward passes) and rendering run
+      entirely on the GPU via generated fragment shaders, labelled <strong>[GPU]</strong> in
+      the status bar. Otherwise the demo falls back to CPU training and a lower-resolution
+      Canvas 2D renderer.
+    </p>
+  </div>
+</details>
+
 <div id="stats">Steps: 0 | Loss: —</div>
 
 <!-- Row 1: run controls -->
